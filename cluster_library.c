@@ -646,8 +646,8 @@ cluster_node_create(redisCluster *c, char *host, size_t host_len,
     node->slaves = NULL;
 
     // Attach socket
-    node->sock = redis_sock_create(host, host_len, port, ZSTR_VAL(c->auth), ZSTR_LEN(c->auth),
-        c->timeout, c->read_timeout,c->persistent, NULL, 0, 1);
+    node->sock = redis_sock_create(host, host_len, port, c->auth ? ZSTR_VAL(c->auth) : NULL,
+        c->auth ? ZSTR_LEN(c->auth) : 0, c->timeout, c->read_timeout,c->persistent, NULL, 0, 1);
 
     return node;
 }
@@ -917,8 +917,8 @@ cluster_init_seeds(redisCluster *cluster, HashTable *ht_seeds) {
             continue;
 
         // Allocate a structure for this seed
-        redis_sock = redis_sock_create(str, psep-str,
-            (unsigned short)atoi(psep+1), ZSTR_VAL(cluster->auth), ZSTR_LEN(cluster->auth),
+        redis_sock = redis_sock_create(str, psep-str, (unsigned short)atoi(psep+1),
+            cluster->auth ? ZSTR_VAL(cluster->auth) : NULL, cluster->auth ? ZSTR_LEN(cluster->auth) : 0,
             cluster->timeout, cluster->read_timeout, cluster->persistent, NULL, 0, 0);
 
         // Index this seed by host/port

@@ -52,20 +52,10 @@
     memcmp(ZSTR_VAL(SLOT_SOCK(c,c->redir_slot)->host),c->redir_host,c->redir_host_len))
 
 /* Lazy connect logic */
-#if 0
 #define CLUSTER_LAZY_CONNECT(s) \
     if(s->lazy_connect) { \
+        int needs_auth = (s->auth && s->status != REDIS_SOCK_STATUS_CONNECTED); \
         s->lazy_connect = 0; \
-        redis_sock_server_open(s TSRMLS_CC); \
-    }
-#endif
-#define CLUSTER_LAZY_CONNECT(s) \
-    int needs_auth = 0;   \
-    if(s->lazy_connect) { \
-        s->lazy_connect = 0; \
-        if(s->auth && s->status != REDIS_SOCK_STATUS_CONNECTED) {\
-            needs_auth = 1;\
-        }\
         redis_sock_server_open(s TSRMLS_CC); \
         if(needs_auth) {\
             resend_auth(s TSRMLS_CC);\

@@ -427,7 +427,7 @@ void redis_cluster_init(redisCluster *c, HashTable *ht_seeds, char *auth, int au
     // Create and map our key space
     cluster_map_keyspace(c TSRMLS_CC);
 
-    zend_string_release(c->auth);
+    if (c->auth) zend_string_release(c->auth);
 }
 
 /* Attempt to load a named cluster configured in php.ini */
@@ -533,10 +533,8 @@ void redis_cluster_load(redisCluster *c, char *name, int name_len TSRMLS_DC) {
 /* Create a RedisCluster Object */
 PHP_METHOD(RedisCluster, __construct) {
     zval *object, *z_seeds = NULL;
-    char *name;
-    strlen_t name_len;
-    char *auth = NULL;
-    int auth_len = 0;
+    char *name, *auth = NULL;
+    strlen_t name_len, auth_len = 0;
     double timeout = 0.0, read_timeout = 0.0;
     zend_bool persistent = 0;
     redisCluster *context = GET_CONTEXT();
