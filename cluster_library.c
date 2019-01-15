@@ -259,6 +259,17 @@ cluster_read_sock_resp(RedisSock *redis_sock, REDIS_REPLY_TYPE type,
     return r;
 }
 
+/* Helper to open connection and send AUTH if necessary */
+static zend_always_inline int
+cluster_sock_open(RedisSock *redis_sock TSRMLS_DC)
+{
+    zend_bool need_auth = (redis_sock->auth && redis_sock->status != REDIS_SOCK_STATUS_CONNECTED);
+    if (!redis_sock_server_open(redis_sock TSRMLS_CC) && (!need_auth || !redis_sock_auth(redis_sock TSRMLS_CC))) {
+        return SUCCESS;
+    }
+    return FAILURE;
+}
+
 /*
  * Helpers to send various 'control type commands to a specific node, e.g.
  * MULTI, ASKING, READONLY, READWRITE, etc
@@ -895,7 +906,8 @@ static zval **cluster_shuffle_seeds(HashTable *seeds, int *len) {
 
 /* Initialize seeds */
 PHP_REDIS_API int
-cluster_init_seeds(redisCluster *cluster, HashTable *ht_seeds) {
+cluster_init_seeds(redisCluster *cluster, HashTable *ht_seeds, char *auth, strlen_t auth_len)
+{
     RedisSock *redis_sock;
     char *str, *psep, key[1024];
     int key_len, count, i;
@@ -925,6 +937,11 @@ cluster_init_seeds(redisCluster *cluster, HashTable *ht_seeds) {
             (unsigned short)atoi(psep+1), cluster->timeout,
             cluster->read_timeout, cluster->persistent, NULL, 0);
 
+        // Set auth information if specified
+        if (auth && auth_len > 0) {
+            redis_sock->auth = zend_string_init(auth, auth_len, 0);
+        }
+
         // Index this seed by host/port
         key_len = snprintf(key, sizeof(key), "%s:%u", ZSTR_VAL(redis_sock->host),
             redis_sock->port);
@@ -948,7 +965,7 @@ PHP_REDIS_API int cluster_map_keyspace(redisCluster *c TSRMLS_DC) {
     // Iterate over seeds until we can get slots
     ZEND_HASH_FOREACH_PTR(c->seeds, seed) {
         // Attempt to connect to this seed node
-        if (seed == NULL || redis_sock_connect(seed TSRMLS_CC) != 0) {
+        if (seed == NULL || cluster_sock_open(seed TSRMLS_CC) != 0) {
             continue;
         }
 
@@ -1118,11 +1135,6 @@ static int cluster_dist_write(redisCluster *c, const char *cmd, size_t sz,
         /* Get the slave for this index */
         redis_sock = cluster_slot_sock(c, c->cmd_slot, nodes[i]);
         if (!redis_sock) continue;
-
-        /* Connect to this node if we haven't already */
-        if(redis_sock_server_open(redis_sock TSRMLS_CC)) {
-            continue;
-        }
 
         /* If we're not on the master, attempt to send the READONLY command to
          * this slave, and skip it if that fails */
